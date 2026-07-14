@@ -6,3 +6,6 @@ output/
 tsconfig.tsbuildinfo
 .env
 .env.*
+
+.vercel
+.env*
