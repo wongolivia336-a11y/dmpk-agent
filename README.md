@@ -1,53 +1,94 @@
-# DMPK Quotation Agent Prototype
+# DMPK Agent Prototype
 
 Clickable Next.js prototype for a DMPK quotation agent workspace.
 
-This prototype adapts the approved tumor report workbench visual system to a quotation flow:
+This repository is for design review, user-flow validation, and engineering handoff. It is not production backend code.
 
-```text
-Recognize DMPK / assay type
--> Collect missing quotation parameters
--> Validate pricing-critical fields
--> Preview and confirm parameters
--> Generate Word quotation and Excel detail files
--> Verify page / Word / Excel amount consistency
-```
+## Preview
 
-## Key UX Decisions
+- GitHub remote: https://github.com/wongolivia336-a11y/dmpk-agent.git
+- Vercel: import this repository as a Next.js project.
 
-- Left sidebar follows the tumor report workspace pattern: project groups with multiple chats.
-- Center conversation remains the primary workflow surface.
-- Missing fields are collected through warning-style task cards, grouped by business stage.
-- Selected values are written to composer parameter tabs first; the right panel updates only after the user sends.
-- Right panel is always visible and preserves the beta parameter form as the submitted parameter ledger.
-- After generation, the right panel can switch to artifacts / versions.
-- Final confirmation happens in the main conversation, with a detailed modal preview before generation.
-- Activity chains are retained for both lightweight parameter updates and full quotation generation.
-
-## Main Files
-
-- `app/page.tsx`
-  Renders the DMPK quotation prototype.
-
-- `components/DmpkQuotationWorkbench.tsx`
-  Main prototype screen and local mock interaction state.
-
-- `app/globals.css`
-  Reuses the tumor report visual system and adds DMPK-specific layout styles.
-
-## Run
+## Quick Start
 
 ```bash
 npm install
-npm run dev
+npm run dev -- --port 4307
 ```
 
 Open:
 
 ```text
-http://localhost:3000
+http://localhost:4307
 ```
 
-## Validation Note
+## Vercel Deployment
 
-Dependency install was not run during this handoff because the workspace rules prohibit running dependency installs from `G:\实习` without explicit user approval.
+Use the default Next.js settings:
+
+- Framework Preset: `Next.js`
+- Root Directory: repository root
+- Build Command: `npm run build`
+- Output Directory: leave empty
+- Install Command: default or `npm install`
+
+If a previous failed deployment configured `dist`, `out`, or another output directory, clear that setting and redeploy from the latest `main` branch.
+
+## Documentation Map
+
+- [CHANGELOG.md](CHANGELOG.md)
+  Version history and important iteration notes.
+
+- [AGENTS.md](AGENTS.md)
+  Project-specific rules for Codex/agent handoff.
+
+- [docs/DESIGN.md](docs/DESIGN.md)
+  Current design system and interaction rules.
+
+- [docs/DMPK_QUOTATION_CANONICAL_SPEC.md](docs/DMPK_QUOTATION_CANONICAL_SPEC.md)
+  Canonical DMPK interaction, panel, composer, preview, and artifact specification.
+
+- [docs/HANDOFF.md](docs/HANDOFF.md)
+  Engineering handoff notes for future API integration.
+
+- [docs/API_CONTRACT.md](docs/API_CONTRACT.md)
+  Draft backend API contract.
+
+- [docs/SKILLS_INVENTORY.md](docs/SKILLS_INVENTORY.md)
+  Current local skills inventory and cleanup notes.
+
+- [docs/archive/](docs/archive/)
+  Historical worklogs, UX reviews, change notes, and presentation drafts. These are kept for traceability but are not the active source of truth.
+
+## Repository Map
+
+- `app/`
+  Next.js App Router entry files. `app/page.tsx` renders the prototype screen and `app/globals.css` contains the visual system.
+
+- `components/`
+  React UI components. The main workbench prototype currently lives in `components/DmpkQuotationWorkbench.tsx`.
+
+- `lib/`
+  Mock data, workflow helpers, type definitions, and API contract shape.
+
+- `docs/`
+  Active design, handoff, API, skills, and archive documentation.
+
+- `public/`
+  Static assets such as the BioAZ logo.
+
+## Tech Stack
+
+- Next.js App Router
+- React
+- TypeScript
+- CSS in `app/globals.css`
+- `lucide-react` icons
+
+## Prototype Scope
+
+- Mock data only
+- No backend APIs
+- No authentication
+- No database
+- No real Word / Excel export service
