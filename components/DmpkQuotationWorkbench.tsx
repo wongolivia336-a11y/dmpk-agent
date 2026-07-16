@@ -19,6 +19,7 @@ import {
   Search,
   Send,
   Sparkles,
+  Upload,
   X,
 } from "lucide-react";
 
@@ -27,6 +28,26 @@ type GroupId = "assay" | "animal" | "analysis" | "delivery";
 type SecondaryTopic = "process" | "artifacts" | "evidence" | null;
 type WorkbenchView = "tasks" | "library" | "quotation";
 type DigitalCoworkerId = "helper" | "dmpk" | "report" | "qa";
+type PinItemType = "project" | "task";
+type WorkspaceTask = {
+  id: string;
+  title: string;
+  project: string;
+  coworker: string;
+  time: string;
+  status: string;
+};
+type KnowledgeAudience = "all" | "human" | "agent" | "source";
+type KnowledgeFile = {
+  id: string;
+  title: string;
+  project: string;
+  audience: Exclude<KnowledgeAudience, "all">;
+  kind: string;
+  owner: string;
+  updated: string;
+  status: string;
+};
 
 type Field = {
   id: string;
@@ -107,6 +128,19 @@ const digitalCoworkers: Record<DigitalCoworkerId, { label: string; hint: string;
   },
 };
 
+const workspacePinCatalog: Array<{ id: string; type: PinItemType; title: string; time?: string; status?: string }> = [
+  { id: "project-xx", type: "project", title: "XX药业-PD1临床前评价" },
+  { id: "project-yy", type: "project", title: "YY药业-Balb/c nude评价" },
+  { id: "project-zz", type: "project", title: "ZZ药业-CT26模型评价" },
+  { id: "task-sample9", type: "task", title: "样本 9 双批次报告", time: "36 分钟前", status: "pending" },
+  { id: "task-balbc", type: "task", title: "Balb/c nude 报价", time: "3 天前", status: "done" },
+  { id: "task-qa", type: "task", title: "报告交付包 QA复核", time: "1 小时前", status: "done" },
+  { id: "task-new-quote", type: "task", title: "新建报价任务", time: "刚刚", status: "running" },
+  { id: "task-ba", type: "task", title: "Balb/c nude BA 报价", time: "3 天前", status: "done" },
+  { id: "task-ct26", type: "task", title: "报价交付包复核", time: "1 周", status: "done" },
+  { id: "task-temp", type: "task", title: "内部试跑报价模型对比", time: "今天", status: "running" },
+];
+
 function groupTitle(id: GroupId) {
   return groups.find((group) => group.id === id)?.title ?? "";
 }
@@ -115,6 +149,7 @@ export default function DmpkQuotationWorkbench() {
   const [collapsed, setCollapsed] = useState(false);
   const [activeView, setActiveView] = useState<WorkbenchView>("quotation");
   const [activeCoworker, setActiveCoworker] = useState<DigitalCoworkerId>("helper");
+  const [pinnedItemIds, setPinnedItemIds] = useState<string[]>(["task-new-quote"]);
   const [fields, setFields] = useState<Field[]>(initialFields);
   const [activeGroup, setActiveGroup] = useState<GroupId>("assay");
   const [openGroups, setOpenGroups] = useState<Record<GroupId, boolean>>({
@@ -128,7 +163,7 @@ export default function DmpkQuotationWorkbench() {
     {
       id: "hello",
       role: "agent",
-      text: "你好，我是 BioAZ Helper。你可以直接描述任务，我会自动识别应交给哪位数字同事；当前这个 DMPK 报价任务会进入 DMPK报价数字同事处理。",
+      text: "你好，我是 BioAZ Helper。描述任务后，我会识别意图，并在分派前请你确认数字同事。",
     },
   ]);
   const [composerText, setComposerText] = useState("");
@@ -139,6 +174,7 @@ export default function DmpkQuotationWorkbench() {
   const [pinnedTopic, setPinnedTopic] = useState<SecondaryTopic>(null);
   const [editingFieldId, setEditingFieldId] = useState<string | null>(null);
   const [pendingDispatchText, setPendingDispatchText] = useState<string | null>(null);
+  const [dispatchCoworker, setDispatchCoworker] = useState<Exclude<DigitalCoworkerId, "helper">>("dmpk");
 
   const missingFields = useMemo(() => fields.filter((field) => field.required && !field.value), [fields]);
   const visibleCardFields = missingFields.filter((field) => !draftTabs.some((tab) => tab.fieldId === field.id));
@@ -227,9 +263,11 @@ export default function DmpkQuotationWorkbench() {
       return;
     }
     if (!text || stage === "thinking" || stage === "generating") return;
-    if (stage === "idle" && activeCoworker === "helper" && /dmpk|报价|pk/i.test(text)) {
+    if (stage === "idle" && activeCoworker === "helper") {
+      const suggestedCoworker: Exclude<DigitalCoworkerId, "helper"> = /qa|审核|复核/i.test(text) ? "qa" : /报告|肿瘤|药效/i.test(text) ? "report" : "dmpk";
       appendMessage("user", text);
-      appendMessage("agent", "我识别这是一个 DMPK 报价任务，可以交给 DMPK报价同事继续收集参数并生成报价产物。");
+      appendMessage("agent", `我理解这是${digitalCoworkers[suggestedCoworker].label}可以处理的任务，请确认分派。`);
+      setDispatchCoworker(suggestedCoworker);
       setPendingDispatchText(text);
       setComposerText("");
       return;
@@ -241,8 +279,16 @@ export default function DmpkQuotationWorkbench() {
     if (!pendingDispatchText) return;
     const text = pendingDispatchText;
     setPendingDispatchText(null);
-    setActiveCoworker("dmpk");
-    handleInitialRequest(text, { skipUserMessage: true });
+    setActiveCoworker(dispatchCoworker);
+    if (dispatchCoworker === "dmpk") {
+      handleInitialRequest(text, { skipUserMessage: true });
+      return;
+    }
+    appendMessage("agent", `已交给${digitalCoworkers[dispatchCoworker].label}。当前任务已创建，可以继续补充要求或上传文件。`);
+  };
+
+  const togglePinnedItem = (id: string) => {
+    setPinnedItemIds((items) => (items.includes(id) ? items.filter((item) => item !== id) : [id, ...items]));
   };
 
   const startGeneration = () => {
@@ -259,7 +305,7 @@ export default function DmpkQuotationWorkbench() {
 
   return (
     <main className={`dmpkShell ${collapsed ? "sidebarCollapsed" : ""} ${activeView !== "quotation" ? "workbenchShell" : ""}`}>
-      <WorkspaceSidebar collapsed={collapsed} activeView={activeView} onViewChange={setActiveView} onToggleCollapsed={() => setCollapsed((value) => !value)} />
+      <WorkspaceSidebar collapsed={collapsed} activeView={activeView} pinnedItemIds={pinnedItemIds} onTogglePinnedItem={togglePinnedItem} onViewChange={setActiveView} onToggleCollapsed={() => setCollapsed((value) => !value)} />
       <section className={`dmpkWorkspace ${activeView !== "quotation" ? "workbenchMode" : ""}`}>
         <header className="topbar">
           <div className="breadcrumb">
@@ -268,7 +314,7 @@ export default function DmpkQuotationWorkbench() {
             <strong>{activeView === "library" ? "知识库" : activeView === "tasks" ? "待处理" : "新建报价任务"}</strong>
           </div>
         </header>
-        {activeView === "library" ? <KnowledgeBase /> : activeView === "tasks" ? <TaskWorkbench onOpenQuotation={() => setActiveView("quotation")} /> : <>
+        {activeView === "library" ? <KnowledgeBase /> : activeView === "tasks" ? <TaskWorkbench pinnedItemIds={pinnedItemIds} onTogglePinnedItem={togglePinnedItem} onOpenQuotation={() => setActiveView("quotation")} /> : <>
         <header className="agentHeader">
           <div className="agentTitle">
             <span className="agentIcon pending">
@@ -308,6 +354,8 @@ export default function DmpkQuotationWorkbench() {
           activeCoworker={activeCoworker}
           onCoworkerChange={setActiveCoworker}
           pendingDispatchText={pendingDispatchText}
+          dispatchCoworker={dispatchCoworker}
+          onDispatchCoworkerChange={setDispatchCoworker}
           onConfirmDispatch={confirmDispatch}
           onCancelDispatch={() => setPendingDispatchText(null)}
           disabled={
@@ -358,10 +406,15 @@ function parseRequest(text: string): Record<string, string> {
   return patch;
 }
 
-function WorkspaceSidebar({ collapsed, activeView, onViewChange, onToggleCollapsed }: { collapsed: boolean; activeView: WorkbenchView; onViewChange: (view: WorkbenchView) => void; onToggleCollapsed: () => void }) {
+function WorkspaceSidebar({ collapsed, activeView, pinnedItemIds, onTogglePinnedItem, onViewChange, onToggleCollapsed }: { collapsed: boolean; activeView: WorkbenchView; pinnedItemIds: string[]; onTogglePinnedItem: (id: string) => void; onViewChange: (view: WorkbenchView) => void; onToggleCollapsed: () => void }) {
   const [open, setOpen] = useState({ oncology: true, dmpk: true, qa: false });
   const [searchOpen, setSearchOpen] = useState(false);
-  const [pinnedQuotation, setPinnedQuotation] = useState(true);
+  const [newTaskOpen, setNewTaskOpen] = useState(false);
+  const pinnedItems = pinnedItemIds.map((id) => workspacePinCatalog.find((item) => item.id === id)).filter((item): item is (typeof workspacePinCatalog)[number] => Boolean(item));
+  const startTask = () => {
+    setNewTaskOpen(false);
+    onViewChange("quotation");
+  };
   return (
     <aside className="sidebar">
       <div className="brand">
@@ -383,30 +436,30 @@ function WorkspaceSidebar({ collapsed, activeView, onViewChange, onToggleCollaps
         ) : (
           <>
             <div className="newChatWrap">
-              <button className="newChat" type="button">
+              <button className={`newChat ${newTaskOpen ? "active" : ""}`} type="button" aria-expanded={newTaskOpen} onClick={() => setNewTaskOpen((value) => !value)}>
                 <span>+</span>
                 新建任务
               </button>
-              <div className="newChatMenu">
+              {newTaskOpen ? <div className="newChatMenu isOpen">
                 <span className="newChatMenuLabel">挂靠到</span>
-                <button type="button" onClick={() => onViewChange("quotation")}>
+                <button type="button" onClick={startTask}>
                   <Folder size={16} />
                   XX药业-PD1临床前评价
                   <small>常用</small>
                 </button>
-                <button type="button" onClick={() => onViewChange("quotation")}>
+                <button type="button" onClick={startTask}>
                   <Folder size={16} />
                   YY药业-Balb/c nude评价
                 </button>
-                <button type="button" onClick={() => onViewChange("quotation")}>
+                <button type="button" onClick={startTask}>
                   <Folder size={16} />
                   ZZ药业-CT26模型评价
                 </button>
-                <button type="button" onClick={() => onViewChange("quotation")}>
+                <button type="button" onClick={startTask}>
                   <MessageSquare size={16} />
                   临时任务
                 </button>
-              </div>
+              </div> : null}
             </div>
             <button className="sidebarSearchButton" type="button" onClick={() => setSearchOpen(true)} aria-label="搜索">
               <Search size={17} />
@@ -426,29 +479,33 @@ function WorkspaceSidebar({ collapsed, activeView, onViewChange, onToggleCollaps
           <small>知识库</small>
         </button>
       </nav>
-      {pinnedQuotation ? (
+      {pinnedItems.length ? (
         <section className="navBlock pinnedBlock" aria-label="置顶">
           <p>置顶</p>
-          <SidebarChat title="新建报价任务" time="刚刚" status="running" active={activeView === "quotation"} pinned onClick={() => onViewChange("quotation")} onPinToggle={() => setPinnedQuotation(false)} />
+          {pinnedItems.map((item) => item.type === "project" ? (
+            <SidebarPinnedProject key={item.id} title={item.title} onClick={() => onViewChange("tasks")} onUnpin={() => onTogglePinnedItem(item.id)} />
+          ) : (
+            <SidebarChat key={item.id} title={item.title} time={item.time ?? ""} status={item.status ?? "done"} active={item.id === "task-new-quote" && activeView === "quotation"} pinned onClick={() => onViewChange("quotation")} onPinToggle={() => onTogglePinnedItem(item.id)} />
+          ))}
         </section>
       ) : null}
       <nav className="navBlock projectTree" aria-label="项目">
         <p>项目</p>
-        <SidebarProject title="XX药业-PD1临床前评价" open={open.oncology} onToggle={() => setOpen({ ...open, oncology: !open.oncology })}>
-          <SidebarChat title="样本 9 双批次报告" time="36 分钟前" status="pending" onClick={() => onViewChange("quotation")} />
-          <SidebarChat title="Balb/c nude 报价" time="3 天前" status="done" onClick={() => onViewChange("quotation")} />
-          <SidebarChat title="报告交付包 QA复核" time="1 小时前" status="done" onClick={() => onViewChange("quotation")} />
+        <SidebarProject title="XX药业-PD1临床前评价" open={open.oncology} pinned={pinnedItemIds.includes("project-xx")} onTogglePin={() => onTogglePinnedItem("project-xx")} onNewTask={startTask} onToggle={() => setOpen({ ...open, oncology: !open.oncology })}>
+          <SidebarChat title="样本 9 双批次报告" time="36 分钟前" status="pending" pinned={pinnedItemIds.includes("task-sample9")} onPinToggle={() => onTogglePinnedItem("task-sample9")} onClick={() => onViewChange("quotation")} />
+          <SidebarChat title="Balb/c nude 报价" time="3 天前" status="done" pinned={pinnedItemIds.includes("task-balbc")} onPinToggle={() => onTogglePinnedItem("task-balbc")} onClick={() => onViewChange("quotation")} />
+          <SidebarChat title="报告交付包 QA复核" time="1 小时前" status="done" pinned={pinnedItemIds.includes("task-qa")} onPinToggle={() => onTogglePinnedItem("task-qa")} onClick={() => onViewChange("quotation")} />
         </SidebarProject>
-        <SidebarProject title="YY药业-Balb/c nude评价" open={open.dmpk} onToggle={() => setOpen({ ...open, dmpk: !open.dmpk })}>
-          <SidebarChat title="新建报价任务" time="刚刚" status="running" active={activeView === "quotation"} onClick={() => onViewChange("quotation")} onPinToggle={() => setPinnedQuotation((value) => !value)} pinned={pinnedQuotation} />
-          <SidebarChat title="Balb/c nude BA 报价" time="3 天前" status="done" onClick={() => onViewChange("quotation")} />
+        <SidebarProject title="YY药业-Balb/c nude评价" open={open.dmpk} pinned={pinnedItemIds.includes("project-yy")} onTogglePin={() => onTogglePinnedItem("project-yy")} onNewTask={startTask} onToggle={() => setOpen({ ...open, dmpk: !open.dmpk })}>
+          <SidebarChat title="新建报价任务" time="刚刚" status="running" active={activeView === "quotation"} pinned={pinnedItemIds.includes("task-new-quote")} onClick={() => onViewChange("quotation")} onPinToggle={() => onTogglePinnedItem("task-new-quote")} />
+          <SidebarChat title="Balb/c nude BA 报价" time="3 天前" status="done" pinned={pinnedItemIds.includes("task-ba")} onPinToggle={() => onTogglePinnedItem("task-ba")} onClick={() => onViewChange("quotation")} />
         </SidebarProject>
-        <SidebarProject title="ZZ药业-CT26模型评价" open={open.qa} onToggle={() => setOpen({ ...open, qa: !open.qa })}>
-          <SidebarChat title="报价交付包复核" time="1 周" status="done" onClick={() => onViewChange("quotation")} />
+        <SidebarProject title="ZZ药业-CT26模型评价" open={open.qa} pinned={pinnedItemIds.includes("project-zz")} onTogglePin={() => onTogglePinnedItem("project-zz")} onNewTask={startTask} onToggle={() => setOpen({ ...open, qa: !open.qa })}>
+          <SidebarChat title="报价交付包复核" time="1 周" status="done" pinned={pinnedItemIds.includes("task-ct26")} onPinToggle={() => onTogglePinnedItem("task-ct26")} onClick={() => onViewChange("quotation")} />
         </SidebarProject>
         <div className="temporaryTasks">
           <p>临时任务</p>
-          <SidebarChat title="内部试跑报价模型对比" time="今天" status="running" archiveable onClick={() => onViewChange("quotation")} />
+          <SidebarChat title="内部试跑报价模型对比" time="今天" status="running" archiveable pinned={pinnedItemIds.includes("task-temp")} onPinToggle={() => onTogglePinnedItem("task-temp")} onClick={() => onViewChange("quotation")} />
         </div>
       </nav>
       <div className="account">
@@ -465,30 +522,44 @@ function WorkspaceSidebar({ collapsed, activeView, onViewChange, onToggleCollaps
   );
 }
 
-function SidebarProject({ title, open, onToggle, children }: { title: string; open: boolean; onToggle: () => void; children: React.ReactNode }) {
+function SidebarPinnedProject({ title, onClick, onUnpin }: { title: string; onClick: () => void; onUnpin: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return (
+    <div className="pinnedProjectRow">
+      <button type="button" onClick={onClick}><Folder size={15} /><strong>{title}</strong></button>
+      <button type="button" aria-label="置顶项目操作" onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={14} /></button>
+      {menuOpen ? <div className="sidebarMenu"><button type="button" onClick={onUnpin}><PinOff size={14} />取消置顶</button></div> : null}
+    </div>
+  );
+}
+
+function SidebarProject({ title, open, pinned, onTogglePin, onNewTask, onToggle, children }: { title: string; open: boolean; pinned: boolean; onTogglePin: () => void; onNewTask: () => void; onToggle: () => void; children: React.ReactNode }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const openMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(true);
+  };
   return (
     <div className="projectGroup">
-      <div className="projectRowWrap">
+      <div className={`projectRowWrap ${menuOpen ? "menuOpen" : ""}`} onContextMenu={openMenu}>
         <button className="projectRow" type="button" onClick={onToggle}>
           <Folder size={15} strokeWidth={1.8} />
           <strong>{title}</strong>
           <ChevronRight className={open ? "isOpen" : ""} size={14} strokeWidth={1.8} />
         </button>
-        <div className="projectHoverActions">
-          <button type="button" aria-label="项目操作">
+        <div className="projectHoverActions isActionOnly">
+          <button type="button" aria-label="项目操作" aria-expanded={menuOpen} onClick={(event) => { event.stopPropagation(); setMenuOpen((value) => !value); }}>
             <MoreHorizontal size={14} strokeWidth={1.8} />
           </button>
-          <button type="button" aria-label="重命名项目">
-            <Edit3 size={14} strokeWidth={1.8} />
-          </button>
-          <div className="sidebarMenu">
-            <button type="button">置顶项目</button>
-            <button type="button">新建任务</button>
+          {menuOpen ? <div className="sidebarMenu projectMenu">
+            <button type="button" onClick={() => { onTogglePin(); setMenuOpen(false); }}>{pinned ? <PinOff size={14} /> : <Pin size={14} />}{pinned ? "取消置顶" : "置顶项目"}</button>
+            <button type="button" onClick={() => { onNewTask(); setMenuOpen(false); }}><MessageSquare size={14} />新建任务</button>
+            <button type="button"><Edit3 size={14} />重命名</button>
             <button type="button">成员与权限</button>
-            <button type="button">重命名项目</button>
             <button type="button">查看操作记录</button>
             <button type="button">归入回收站</button>
-          </div>
+          </div> : null}
         </div>
       </div>
       {open ? <div className="chatTree">{children}</div> : null}
@@ -497,30 +568,30 @@ function SidebarProject({ title, open, onToggle, children }: { title: string; op
 }
 
 function SidebarChat({ title, time, status, active = false, pinned = false, archiveable = false, onClick, onPinToggle }: { title: string; time: string; status: string; active?: boolean; pinned?: boolean; archiveable?: boolean; onClick?: () => void; onPinToggle?: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [archiveOpen, setArchiveOpen] = useState(false);
+  const openMenu = (event: React.MouseEvent) => {
+    event.preventDefault();
+    event.stopPropagation();
+    setMenuOpen(true);
+  };
   return (
-    <button className={`chatRow status-${status} ${active ? "active" : ""} ${pinned ? "isPinnedShortcut" : ""} ${archiveable ? "isArchiveable" : ""}`} type="button" onClick={onClick}>
-      <FileText className="sidebarIcon" size={15} strokeWidth={1.8} />
-      <strong>{title}</strong>
-      <small>{time}</small>
-      <span
-        className="chatHoverActions"
-        onClick={(event) => {
-          event.stopPropagation();
-          onPinToggle?.();
-        }}
-      >
-        {pinned ? <PinOff size={14} strokeWidth={1.8} /> : <Pin size={14} strokeWidth={1.8} />}
-        <MoreHorizontal size={14} strokeWidth={1.8} />
-      </span>
-      {archiveable ? (
-        <span className="archiveMenu">
-          <em>归档到项目</em>
-          <i>XX药业-PD1临床前评价</i>
-          <i>YY药业-Balb/c nude评价</i>
-          <i>ZZ药业-CT26模型评价</i>
-        </span>
-      ) : null}
-    </button>
+    <div className={`chatRow status-${status} ${active ? "active" : ""} ${pinned ? "isPinnedShortcut" : ""} ${menuOpen ? "menuOpen" : ""}`} onContextMenu={openMenu}>
+      <button className="chatRowMain" type="button" onClick={onClick}>
+        <FileText className="sidebarIcon" size={15} strokeWidth={1.8} />
+        <strong>{title}</strong>
+        <small>{time}</small>
+      </button>
+      <button className="chatMoreButton" type="button" aria-label={`${title}更多操作`} aria-expanded={menuOpen} onClick={(event) => { event.stopPropagation(); setMenuOpen((value) => !value); }}><MoreHorizontal size={14} /></button>
+      {menuOpen ? <div className="sidebarMenu chatMenu">
+        <button type="button" onClick={() => { onPinToggle?.(); setMenuOpen(false); }}>{pinned ? <PinOff size={14} /> : <Pin size={14} />}{pinned ? "取消置顶" : "置顶任务"}</button>
+        <button type="button" onClick={() => { onClick?.(); setMenuOpen(false); }}><Eye size={14} />打开任务</button>
+        {archiveable ? <button type="button" onClick={() => setArchiveOpen((value) => !value)}><Folder size={14} />归档到项目<ChevronRight size={13} /></button> : null}
+        {archiveable && archiveOpen ? <div className="archiveSubmenu">
+          {["XX药业-PD1临床前评价", "YY药业-Balb/c nude评价", "ZZ药业-CT26模型评价"].map((project) => <button type="button" key={project} onClick={() => { setArchiveOpen(false); setMenuOpen(false); }}>{project}</button>)}
+        </div> : null}
+      </div> : null}
+    </div>
   );
 }
 
@@ -737,41 +808,41 @@ function ParameterTaskCard({ activeGroup, fields, draftTabs, mode, onSelect }: {
   );
 }
 
-function TaskWorkbench({ onOpenQuotation }: { onOpenQuotation: () => void }) {
-  const actionTasks = [
-    { title: "报告交付包 QA复核 · 等你审核", project: "XX药业-PD1临床前评价", coworker: "QA审核数字同事", time: "2小时前流转至你", status: "待我处理" },
-    { title: "Balb/c nude 报价 · 需要补充参数", project: "YY药业-Balb/c nude评价", coworker: "DMPK报价数字同事", time: "昨天", status: "待补充" },
-    { title: "CT26 交付包 · 待确认最终版", project: "ZZ药业-CT26模型评价", coworker: "QA审核数字同事", time: "3天前", status: "待确认" },
+function TaskWorkbench({ pinnedItemIds, onTogglePinnedItem, onOpenQuotation }: { pinnedItemIds: string[]; onTogglePinnedItem: (id: string) => void; onOpenQuotation: () => void }) {
+  const actionTasks: WorkspaceTask[] = [
+    { id: "task-qa", title: "报告交付包 QA复核 · 等你审核", project: "XX药业-PD1临床前评价", coworker: "QA审核同事", time: "2小时前", status: "待我处理" },
+    { id: "task-balbc", title: "Balb/c nude 报价 · 需要补充参数", project: "YY药业-Balb/c nude评价", coworker: "DMPK报价同事", time: "昨天", status: "待补充" },
+    { id: "task-ct26", title: "CT26 交付包 · 待确认最终版", project: "ZZ药业-CT26模型评价", coworker: "QA审核同事", time: "3天前", status: "待确认" },
   ];
-  const allTasks = [
-    { title: "样本9 双批次报告", project: "XX药业-PD1临床前评价", coworker: "药效报告数字同事", time: "36分钟前", status: "Agent处理中" },
-    { title: "Balb/c nude 报价", project: "YY药业-Balb/c nude评价", coworker: "DMPK报价数字同事", time: "3天前", status: "已完成" },
-    { title: "报告交付包 QA复核", project: "XX药业-PD1临床前评价", coworker: "QA审核数字同事", time: "1小时前", status: "待审核" },
-    { title: "内部试跑报价模型对比", project: "临时任务", coworker: "BioAZ Helper", time: "今天", status: "临时任务" },
+  const allTasks: WorkspaceTask[] = [
+    { id: "task-sample9", title: "样本9 双批次报告", project: "XX药业-PD1临床前评价", coworker: "药效报告同事", time: "36分钟前", status: "处理中" },
+    { id: "task-ba", title: "Balb/c nude BA 报价", project: "YY药业-Balb/c nude评价", coworker: "DMPK报价同事", time: "3天前", status: "已完成" },
+    { id: "task-qa", title: "报告交付包 QA复核", project: "XX药业-PD1临床前评价", coworker: "QA审核同事", time: "1小时前", status: "待审核" },
+    { id: "task-temp", title: "内部试跑报价模型对比", project: "临时任务", coworker: "BioAZ Helper", time: "今天", status: "临时任务" },
   ];
+  const [projectFilter, setProjectFilter] = useState("全部项目");
+  const [coworkerFilter, setCoworkerFilter] = useState("全部同事");
+  const [statusFilter, setStatusFilter] = useState("全部状态");
+  const [selectedTask, setSelectedTask] = useState<WorkspaceTask | null>(null);
+  const filteredTasks = allTasks.filter((task) =>
+    (projectFilter === "全部项目" || task.project === projectFilter) &&
+    (coworkerFilter === "全部同事" || task.coworker === coworkerFilter) &&
+    (statusFilter === "全部状态" || task.status === statusFilter),
+  );
   return (
     <section className="workbenchView taskWorkbenchView">
       <header>
         <div>
-          <span>任务中心</span>
           <h1>我的任务</h1>
-          <p>先处理需要你介入的事项，其余工作按最近更新时间排列。</p>
         </div>
-        <button className="primaryButton compact" type="button" onClick={onOpenQuotation}>进入 DMPK 报价</button>
+        <button className="primaryButton compact" type="button" onClick={onOpenQuotation}>新建任务</button>
       </header>
       <div className="taskQueueShell">
         <section className="taskQueueSection">
           <h2>待我处理 · 3</h2>
           <div className="workbenchTaskList">
             {actionTasks.map((task) => (
-              <button className="workbenchTaskCard actionRequired" type="button" key={task.title} onClick={task.title.includes("报价") ? onOpenQuotation : undefined}>
-                <FileText size={16} strokeWidth={1.8} />
-                <span>
-                  <strong>{task.title}</strong>
-                  <small>{task.project} · {task.coworker} · {task.time}</small>
-                </span>
-                <em>{task.status}</em>
-              </button>
+              <TaskRow key={task.id} task={task} actionRequired pinned={pinnedItemIds.includes(task.id)} onPin={() => onTogglePinnedItem(task.id)} onOpen={() => setSelectedTask(task)} />
             ))}
           </div>
         </section>
@@ -779,93 +850,134 @@ function TaskWorkbench({ onOpenQuotation }: { onOpenQuotation: () => void }) {
           <div className="taskSectionHeader">
             <h2>全部任务</h2>
             <div className="taskFilters">
-              <button type="button">项目 <ChevronDown size={13} /></button>
-              <button type="button">数字同事 <ChevronDown size={13} /></button>
-              <button type="button">状态 <ChevronDown size={13} /></button>
+              <CompactSelect value={projectFilter} options={["全部项目", "XX药业-PD1临床前评价", "YY药业-Balb/c nude评价", "临时任务"]} onChange={setProjectFilter} />
+              <CompactSelect value={coworkerFilter} options={["全部同事", "药效报告同事", "DMPK报价同事", "QA审核同事", "BioAZ Helper"]} onChange={setCoworkerFilter} />
+              <CompactSelect value={statusFilter} options={["全部状态", "处理中", "已完成", "待审核", "临时任务"]} onChange={setStatusFilter} />
             </div>
           </div>
           <div className="workbenchTaskList allTaskList">
-            {allTasks.map((task) => (
-              <button className="workbenchTaskCard" type="button" key={task.title} onClick={task.title.includes("报价") ? onOpenQuotation : undefined}>
-                <FileText size={16} strokeWidth={1.8} />
-                <span>
-                  <strong>{task.title}</strong>
-                  <small>{task.project} · {task.coworker} · {task.time}</small>
-                </span>
-                <em>{task.status}</em>
-              </button>
-            ))}
+            {filteredTasks.map((task) => <TaskRow key={task.id} task={task} pinned={pinnedItemIds.includes(task.id)} onPin={() => onTogglePinnedItem(task.id)} onOpen={() => setSelectedTask(task)} />)}
+            {!filteredTasks.length ? <div className="emptyListState">没有符合当前筛选条件的任务</div> : null}
           </div>
         </section>
       </div>
       <WorkspaceAssistant context="tasks" onOpenQuotation={onOpenQuotation} />
+      {selectedTask ? <TaskPreviewDialog task={selectedTask} onClose={() => setSelectedTask(null)} onOpenQuotation={onOpenQuotation} /> : null}
     </section>
   );
 }
 
+function TaskRow({ task, actionRequired = false, pinned, onPin, onOpen }: { task: WorkspaceTask; actionRequired?: boolean; pinned: boolean; onPin: () => void; onOpen: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  const openMenu = (event: React.MouseEvent) => { event.preventDefault(); setMenuOpen(true); };
+  return (
+    <article className={`workbenchTaskCard ${actionRequired ? "actionRequired" : ""} ${menuOpen ? "selected" : ""}`} onContextMenu={openMenu}>
+      <button className="taskRowMain" type="button" onClick={onOpen}>
+        <FileText size={16} strokeWidth={1.8} />
+        <span><strong>{task.title}</strong><small>{task.project} · {task.coworker} · {task.time}</small></span>
+      </button>
+      <em>{task.status}</em>
+      <button className="rowMoreButton" type="button" aria-label={`${task.title}更多操作`} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={15} /></button>
+      {menuOpen ? <div className="rowActionMenu">
+        <button type="button" onClick={() => { onOpen(); setMenuOpen(false); }}><Eye size={14} />预览任务</button>
+        <button type="button" onClick={() => { onPin(); setMenuOpen(false); }}>{pinned ? <PinOff size={14} /> : <Pin size={14} />}{pinned ? "取消置顶" : "置顶任务"}</button>
+        <button type="button" onClick={() => { onOpen(); setMenuOpen(false); }}><MessageSquare size={14} />进入会话</button>
+      </div> : null}
+    </article>
+  );
+}
+
+function TaskPreviewDialog({ task, onClose, onOpenQuotation }: { task: WorkspaceTask; onClose: () => void; onOpenQuotation: () => void }) {
+  const [conversation, setConversation] = useState(false);
+  const enterTask = () => {
+    if (task.coworker === "DMPK报价同事" || task.title.includes("报价")) {
+      onOpenQuotation();
+      onClose();
+      return;
+    }
+    setConversation(true);
+  };
+  return (
+    <div className="modalBackdrop taskPreviewBackdrop" role="dialog" aria-modal="true">
+      <section className="taskPreviewDialog">
+        <header><div><span>{task.project}</span><h2>{task.title}</h2></div><button className="iconButton" type="button" onClick={onClose} aria-label="关闭"><X size={17} /></button></header>
+        {conversation ? <div className="taskConversationPreview"><AgentReply>任务已经进入 {task.coworker} 会话。请补充材料或说明下一步要求。</AgentReply><div className="taskConversationComposer"><input placeholder="继续描述任务..." /><button type="button" aria-label="发送"><Send size={15} /></button></div></div> : <div className="taskPreviewBody">
+          <dl><div><dt>状态</dt><dd>{task.status}</dd></div><div><dt>数字同事</dt><dd>{task.coworker}</dd></div><div><dt>最近更新</dt><dd>{task.time}</dd></div></dl>
+          <section><h3>最近进展</h3><p>已完成任务信息整理，当前等待下一步处理或确认。</p><p>相关项目文件已连接到任务上下文。</p></section>
+        </div>}
+        {!conversation ? <footer><button className="secondaryButton compact" type="button" onClick={onClose}>关闭</button><button className="primaryButton compact" type="button" onClick={enterTask}>进入任务会话</button></footer> : null}
+      </section>
+    </div>
+  );
+}
+
+function CompactSelect({ value, options, onChange }: { value: string; options: string[]; onChange: (value: string) => void }) {
+  const [open, setOpen] = useState(false);
+  return <div className={`compactSelect ${open ? "isOpen" : ""}`}><button type="button" aria-expanded={open} onClick={() => setOpen((current) => !current)}>{value}<ChevronDown size={13} /></button>{open ? <div className="compactSelectMenu">{options.map((option) => <button type="button" className={option === value ? "active" : ""} key={option} onClick={() => { onChange(option); setOpen(false); }}><span>{option}</span>{option === value ? <Check size={13} /> : null}</button>)}</div> : null}</div>;
+}
+
 function KnowledgeBase() {
-  const groups = [
-    {
-      title: "给人看的产出物",
-      files: [
-        { title: "Balbc_nude_报价单.xlsx", meta: "YY药业-Balb/c nude评价 · 报价明细 · 已完成", source: "DMPK报价数字同事" },
-        { title: "样本9_双批次报告_v3.docx", meta: "XX药业-PD1临床前评价 · 报告产物 · 进行中", source: "药效报告数字同事" },
-      ],
-    },
-    {
-      title: "给数字同事调用的知识",
-      files: [
-        { title: "DMPK_报价规则_2026.docx", meta: "规则与模板 · 参数抽取和报价依据", source: "知识库规则" },
-        { title: "QA_交付包检查清单.xlsx", meta: "审核记录 · 放行前复核依据", source: "QA审核数字同事" },
-      ],
-    },
-    {
-      title: "原始数据与说明",
-      files: [
-        { title: "batch9_raw.xlsx", meta: "XX药业-PD1临床前评价 · 原始数据 · 已归档", source: "用户上传" },
-      ],
-    },
-  ];
+  const [files, setFiles] = useState<KnowledgeFile[]>([
+    { id: "file-quote", title: "Balbc_nude_报价单.xlsx", project: "YY药业-Balb/c nude评价", audience: "human", kind: "报价明细", owner: "DMPK报价同事", updated: "3天前", status: "已完成" },
+    { id: "file-report", title: "样本9_双批次报告_v3.docx", project: "XX药业-PD1临床前评价", audience: "human", kind: "报告产物", owner: "药效报告同事", updated: "36分钟前", status: "进行中" },
+    { id: "file-rule", title: "DMPK_报价规则_2026.docx", project: "全局知识库", audience: "agent", kind: "规则与模板", owner: "知识库管理员", updated: "6月28日", status: "已发布" },
+    { id: "file-qa", title: "QA_交付包检查清单.xlsx", project: "全局知识库", audience: "agent", kind: "审核规则", owner: "QA审核同事", updated: "7月2日", status: "已发布" },
+    { id: "file-raw", title: "batch9_raw.xlsx", project: "XX药业-PD1临床前评价", audience: "source", kind: "原始数据", owner: "Admin", updated: "36分钟前", status: "已归档" },
+  ]);
+  const [audience, setAudience] = useState<KnowledgeAudience>("all");
+  const [query, setQuery] = useState("");
+  const [project, setProject] = useState("全部项目");
+  const [selectedFile, setSelectedFile] = useState<KnowledgeFile | null>(null);
+  const audienceLabels: Record<KnowledgeAudience, string> = { all: "全部", human: "给人看的产物", agent: "给数字同事的知识", source: "原始文件" };
+  const visibleFiles = files.filter((file) => (audience === "all" || file.audience === audience) && (project === "全部项目" || file.project === project) && file.title.toLowerCase().includes(query.toLowerCase()));
+  const handleUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const selected = Array.from(event.target.files ?? []);
+    if (!selected.length) return;
+    setFiles((items) => [...selected.map((file, index) => ({ id: `upload-${Date.now()}-${index}`, title: file.name, project: "未归档", audience: "source" as const, kind: "用户上传", owner: "Admin", updated: "刚刚", status: "待整理" })), ...items]);
+    setAudience("all");
+    event.target.value = "";
+  };
   return (
     <section className="workbenchView knowledgeBaseView">
       <header>
-        <div>
-          <span>文件管理系统</span>
-          <h1>知识库与产物库</h1>
-          <p>统一查看项目产物、可供数字同事调用的知识，以及原始数据。</p>
-        </div>
-        <label className="secondaryButton compact" htmlFor="knowledge-file-upload"><FileText size={14} /> 上传文件</label>
-        <input className="visuallyHidden" id="knowledge-file-upload" type="file" multiple />
+        <div><h1>文件管理系统</h1></div>
+        <label className="primaryButton compact" htmlFor="knowledge-file-upload"><Upload size={14} /> 上传文档</label>
+        <input className="visuallyHidden" id="knowledge-file-upload" type="file" multiple onChange={handleUpload} />
       </header>
-      <div className="taskFilters libraryFilters">
-        <button type="button">项目 <ChevronDown size={13} /></button>
-        <button type="button">用途 <ChevronDown size={13} /></button>
-        <button type="button">可见对象 <ChevronDown size={13} /></button>
-        <button type="button">状态 <ChevronDown size={13} /></button>
+      <div className="knowledgeToolbar">
+        <div className="knowledgeSearch"><Search size={15} /><input value={query} onChange={(event) => setQuery(event.target.value)} placeholder="搜索文件" /></div>
+        <CompactSelect value={project} options={["全部项目", "XX药业-PD1临床前评价", "YY药业-Balb/c nude评价", "全局知识库", "未归档"]} onChange={setProject} />
       </div>
-      <div className="knowledgeSections">
-        {groups.map((group) => (
-          <section className="knowledgeSection" key={group.title}>
-            <h2>{group.title}</h2>
-            <div className="knowledgeGrid">
-              {group.files.map((file) => (
-                <article className="knowledgeCard" key={file.title}>
-                  <FileText size={16} strokeWidth={1.8} />
-                  <div>
-                    <strong>{file.title}</strong>
-                    <p>{file.meta}</p>
-                    <small>{file.source}</small>
-                  </div>
-                  <button type="button" aria-label="预览"><Eye size={15} strokeWidth={1.8} /></button>
-                </article>
-              ))}
-            </div>
-          </section>
-        ))}
+      <nav className="knowledgeAudienceTabs" aria-label="文件用途">
+        {(Object.keys(audienceLabels) as KnowledgeAudience[]).map((id) => <button type="button" className={audience === id ? "active" : ""} key={id} onClick={() => setAudience(id)}>{audienceLabels[id]}<small>{id === "all" ? files.length : files.filter((file) => file.audience === id).length}</small></button>)}
+      </nav>
+      <div className="knowledgeTable" role="table">
+        <div className="knowledgeTableHeader" role="row"><span>名称</span><span>项目</span><span>用途</span><span>更新</span><span /></div>
+        {visibleFiles.map((file) => <KnowledgeFileRow key={file.id} file={file} selected={selectedFile?.id === file.id} onPreview={() => setSelectedFile(file)} />)}
+        {!visibleFiles.length ? <div className="emptyListState">没有符合当前条件的文件</div> : null}
       </div>
       <WorkspaceAssistant context="library" />
+      {selectedFile ? <KnowledgeFilePreview file={selectedFile} onClose={() => setSelectedFile(null)} /> : null}
     </section>
   );
+}
+
+function KnowledgeFileRow({ file, selected, onPreview }: { file: KnowledgeFile; selected: boolean; onPreview: () => void }) {
+  const [menuOpen, setMenuOpen] = useState(false);
+  return <article className={`knowledgeFileRow ${selected ? "selected" : ""}`} role="row" onContextMenu={(event) => { event.preventDefault(); setMenuOpen(true); }}>
+    <button className="knowledgeFileMain" type="button" onClick={onPreview}><span className="knowledgeFileIcon">{file.title.endsWith(".xlsx") ? <FileSpreadsheet size={17} /> : <FileText size={17} />}</span><span><strong>{file.title}</strong><small>{file.owner} · {file.status}</small></span></button>
+    <span>{file.project}</span><span>{file.kind}</span><span>{file.updated}</span>
+    <button className="rowMoreButton" type="button" aria-label={`${file.title}更多操作`} onClick={() => setMenuOpen((value) => !value)}><MoreHorizontal size={15} /></button>
+    {menuOpen ? <div className="rowActionMenu knowledgeRowMenu"><button type="button" onClick={() => { onPreview(); setMenuOpen(false); }}><Eye size={14} />预览</button><button type="button"><Download size={14} />下载</button><button type="button"><Folder size={14} />移动到项目</button></div> : null}
+  </article>;
+}
+
+function KnowledgeFilePreview({ file, onClose }: { file: KnowledgeFile; onClose: () => void }) {
+  return <div className="modalBackdrop knowledgePreviewBackdrop" role="dialog" aria-modal="true"><section className="knowledgePreviewDialog"><header><div><span>{file.kind}</span><h2>{file.title}</h2></div><button className="iconButton" type="button" onClick={onClose} aria-label="关闭"><X size={17} /></button></header><div className="knowledgePreviewMeta"><span>{file.project}</span><span>{file.owner}</span><span>{file.updated}</span></div><div className="knowledgeDocumentPreview"><div className="documentPreviewMark">{file.title.endsWith(".xlsx") ? <FileSpreadsheet size={24} /> : <FileText size={24} />}</div><h3>{file.title.replace(/\.[^.]+$/, "")}</h3><p>{file.audience === "human" ? "可交付产物，供项目成员查看与下载。" : file.audience === "agent" ? "已发布到数字同事知识范围，可用于任务执行。" : "原始文件，仅在授权项目任务中调用。"}</p><PreviewTable title="文件信息" rows={[["用途", file.kind, audienceLabel(file.audience)], ["项目", file.project, file.status], ["维护者", file.owner, `更新于${file.updated}`]]} /></div><footer><button className="secondaryButton compact" type="button" onClick={onClose}>关闭</button><button className="primaryButton compact" type="button"><Download size={14} />下载</button></footer></section></div>;
+}
+
+function audienceLabel(audience: Exclude<KnowledgeAudience, "all">) {
+  return audience === "human" ? "给人看的产物" : audience === "agent" ? "给数字同事的知识" : "原始文件";
 }
 
 function WorkspaceAssistant({ context, onOpenQuotation }: { context: "tasks" | "library"; onOpenQuotation?: () => void }) {
@@ -927,6 +1039,7 @@ function WorkspaceAssistant({ context, onOpenQuotation }: { context: "tasks" | "
 }
 
 function CoworkerSelector({ activeCoworker, onCoworkerChange }: { activeCoworker: DigitalCoworkerId; onCoworkerChange: (coworker: DigitalCoworkerId) => void }) {
+  const [open, setOpen] = useState(false);
   const coworker = digitalCoworkers[activeCoworker];
   const coworkerIcons: Record<DigitalCoworkerId, React.ReactNode> = {
     helper: <Sparkles size={16} strokeWidth={1.9} />,
@@ -935,25 +1048,25 @@ function CoworkerSelector({ activeCoworker, onCoworkerChange }: { activeCoworker
     qa: <Check size={16} strokeWidth={1.9} />,
   };
   return (
-    <div className="roleSelector">
-      <div className="roleSelectorCurrent">
+    <div className={`roleSelector ${open ? "isOpen" : ""}`}>
+      <button className="roleSelectorCurrent" type="button" aria-expanded={open} onClick={() => setOpen((value) => !value)}>
         {coworkerIcons[activeCoworker]}
         <span>{coworker.label}</span>
         <small>{activeCoworker === "helper" ? "（自动识别）" : ""}</small>
         <ChevronDown size={14} strokeWidth={1.8} />
-      </div>
-      <div className="roleSelectorMenu">
+      </button>
+      {open ? <div className="roleSelectorMenu isOpen">
         {(["helper", "report", "dmpk", "qa"] as DigitalCoworkerId[]).map((coworkerId) => {
           const item = digitalCoworkers[coworkerId];
           return (
-            <button className={coworkerId === activeCoworker ? "active" : ""} type="button" key={coworkerId} onClick={() => onCoworkerChange(coworkerId)}>
+            <button className={coworkerId === activeCoworker ? "active" : ""} type="button" key={coworkerId} onClick={() => { onCoworkerChange(coworkerId); setOpen(false); }}>
               {coworkerIcons[coworkerId]}
               <strong>{item.label}</strong>
-              {coworkerId === "helper" ? <span>自动识别</span> : null}
+              {coworkerId === activeCoworker ? <Check size={14} /> : coworkerId === "helper" ? <span>自动识别</span> : null}
             </button>
           );
         })}
-      </div>
+      </div> : null}
     </div>
   );
 }
@@ -975,6 +1088,8 @@ function Composer({
   activeCoworker,
   onCoworkerChange,
   pendingDispatchText,
+  dispatchCoworker,
+  onDispatchCoworkerChange,
   onConfirmDispatch,
   onCancelDispatch,
   disabled,
@@ -996,6 +1111,8 @@ function Composer({
   activeCoworker: DigitalCoworkerId;
   onCoworkerChange: (coworker: DigitalCoworkerId) => void;
   pendingDispatchText: string | null;
+  dispatchCoworker: Exclude<DigitalCoworkerId, "helper">;
+  onDispatchCoworkerChange: (coworker: Exclude<DigitalCoworkerId, "helper">) => void;
   onConfirmDispatch: () => void;
   onCancelDispatch: () => void;
   disabled: boolean;
@@ -1004,7 +1121,7 @@ function Composer({
     <footer className="dmpkComposerWrap">
       {stage === "collecting" ? <ParameterTaskCard activeGroup={activeGroup} fields={fields} draftTabs={draftTabs} mode={mode} onSelect={onSelect} /> : null}
       {stage === "ready" ? <FinalConfirmCard onPreview={onPreview} onGenerate={onGenerate} onTopicHover={onTopicHover} onTopicPin={onTopicPin} /> : null}
-      {pendingDispatchText ? <DispatchConfirmCard onConfirm={onConfirmDispatch} onCancel={onCancelDispatch} /> : null}
+      {pendingDispatchText ? <DispatchConfirmCard coworker={dispatchCoworker} onCoworkerChange={onDispatchCoworkerChange} onConfirm={onConfirmDispatch} onCancel={onCancelDispatch} /> : null}
       <CoworkerSelector activeCoworker={activeCoworker} onCoworkerChange={onCoworkerChange} />
       <div className="dmpkComposer">
         <div className="composerInputStack">
@@ -1035,15 +1152,29 @@ function Composer({
   );
 }
 
-function DispatchConfirmCard({ onConfirm, onCancel }: { onConfirm: () => void; onCancel: () => void }) {
+function DispatchConfirmCard({ coworker, onCoworkerChange, onConfirm, onCancel }: { coworker: Exclude<DigitalCoworkerId, "helper">; onCoworkerChange: (coworker: Exclude<DigitalCoworkerId, "helper">) => void; onConfirm: () => void; onCancel: () => void }) {
+  const [open, setOpen] = useState(false);
   return (
     <section className="dispatchConfirmCard">
       <div>
-        <span>BioAZ Helper 已识别</span>
-        <strong>将任务交给 DMPK报价同事处理？</strong>
-        <p>确认后继续收集 DMPK 报价参数，并生成 Word / Excel 报价产物。</p>
+        <span>建议分派</span>
+        <strong>{digitalCoworkers[coworker].label}</strong>
+        <p>{digitalCoworkers[coworker].hint}</p>
       </div>
-      <button type="button" onClick={onCancel}>换一个数字同事</button>
+      <div className={`dispatchCoworkerSelect ${open ? "isOpen" : ""}`}>
+        <button type="button" onClick={() => setOpen((value) => !value)}>更换 <ChevronDown size={13} /></button>
+        {open ? (
+          <div className="dispatchCoworkerMenu">
+            {(["dmpk", "report", "qa"] as Array<Exclude<DigitalCoworkerId, "helper">>).map((id) => (
+              <button type="button" key={id} onClick={() => { onCoworkerChange(id); setOpen(false); }}>
+                <span>{digitalCoworkers[id].label}</span>
+                {id === coworker ? <Check size={14} /> : null}
+              </button>
+            ))}
+          </div>
+        ) : null}
+      </div>
+      <button type="button" onClick={onCancel}>取消</button>
       <button className="primaryButton compact" type="button" onClick={onConfirm}>确认分派</button>
     </section>
   );
