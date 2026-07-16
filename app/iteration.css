@@ -1,0 +1,493 @@
+textarea {
+  font: inherit;
+}
+
+.newChatMenu.isOpen {
+  width: calc(100% + 46px);
+  max-width: calc(100vw - 28px);
+  overflow: hidden;
+}
+
+.newChatMenu button {
+  grid-template-columns: 22px minmax(0, 1fr);
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.newChatMenu button svg {
+  color: #667085;
+}
+
+.newTaskHome {
+  position: relative;
+  display: grid;
+  width: 100%;
+  height: 100%;
+  min-height: 0;
+  grid-template-rows: minmax(0, 1fr) auto;
+  overflow: hidden;
+  background: #fbfcfd;
+  padding: 28px clamp(24px, 6vw, 80px);
+}
+
+.newTaskIntro {
+  display: grid;
+  min-height: 0;
+  align-content: center;
+  justify-items: center;
+  padding: 24px 0 44px;
+}
+
+.newTaskMark {
+  display: grid;
+  width: 46px;
+  height: 46px;
+  place-items: center;
+  border: 1px solid #e4e7ec;
+  border-radius: 12px;
+  background: #fff;
+}
+
+.newTaskMark img {
+  width: 31px;
+  height: 26px;
+  object-fit: contain;
+}
+
+.newTaskIntro h1 {
+  margin: 18px 0 28px;
+  color: #101828;
+  font-size: 30px;
+  font-weight: 650;
+  line-height: 1.2;
+}
+
+.taskExampleGrid {
+  display: grid;
+  width: min(700px, 100%);
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.taskExampleGrid button {
+  display: grid;
+  min-width: 0;
+  min-height: 96px;
+  align-content: space-between;
+  gap: 18px;
+  border: 1px solid #e1e5eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 16px;
+  color: #344054;
+  text-align: left;
+  box-shadow: 0 1px 2px rgba(16, 24, 40, 0.03);
+}
+
+.taskExampleGrid button:hover,
+.taskExampleGrid button:focus-visible {
+  border-color: #b8c0cc;
+  background: #f9fafb;
+  outline: 0;
+}
+
+.taskExampleGrid button svg {
+  color: #667085;
+}
+
+.taskExampleGrid strong {
+  overflow-wrap: anywhere;
+  font-size: 14px;
+  font-weight: 650;
+  line-height: 1.35;
+}
+
+.newTaskComposerDock {
+  position: relative;
+  z-index: 20;
+  display: grid;
+  width: min(820px, 100%);
+  gap: 8px;
+  margin: 0 auto;
+}
+
+.newTaskIntentConversation {
+  display: grid;
+  gap: 7px;
+  padding: 0 4px;
+}
+
+.newTaskIntentConversation > p {
+  justify-self: end;
+  max-width: 78%;
+  margin: 0;
+  border-radius: 10px 10px 3px 10px;
+  background: #eef1f5;
+  padding: 7px 10px;
+  color: #344054;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.newTaskIntentConversation > div {
+  display: grid;
+  grid-template-columns: 24px minmax(0, 1fr);
+  align-items: center;
+  gap: 8px;
+  color: #475467;
+  font-size: 12.5px;
+  line-height: 1.45;
+}
+
+.newTaskIntentConversation img {
+  width: 22px;
+  height: 20px;
+  object-fit: contain;
+}
+
+.newTaskComposerDock .dispatchConfirmCard {
+  box-shadow: 0 16px 40px rgba(16, 24, 40, 0.08);
+}
+
+.projectSelector {
+  position: relative;
+}
+
+.projectSelector > button {
+  display: grid;
+  width: 100%;
+  height: 40px;
+  grid-template-columns: 20px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 7px;
+  border: 1px solid #e1e5eb;
+  border-radius: 10px;
+  background: #fff;
+  padding: 0 13px;
+  color: #475467;
+  text-align: left;
+}
+
+.projectSelector > button span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.projectSelector > button svg:last-child {
+  justify-self: end;
+}
+
+.projectSelectorMenu {
+  position: absolute;
+  right: 0;
+  bottom: calc(100% + 7px);
+  left: 0;
+  z-index: 120;
+  display: grid;
+  gap: 2px;
+  border: 1px solid #e1e5eb;
+  border-radius: 10px;
+  background: #fff;
+  box-shadow: 0 16px 38px rgba(16, 24, 40, 0.12);
+  padding: 6px;
+}
+
+.projectSelectorMenu button {
+  display: flex;
+  min-height: 38px;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border: 0;
+  border-radius: 7px;
+  background: transparent;
+  padding: 0 9px;
+  color: #344054;
+  text-align: left;
+  font-size: 13px;
+}
+
+.projectSelectorMenu button:hover,
+.projectSelectorMenu button.active {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+.projectSelectorMenu button span {
+  display: inline-flex;
+  min-width: 0;
+  align-items: center;
+  gap: 8px;
+}
+
+.newTaskComposer {
+  display: grid;
+  min-height: 82px;
+  grid-template-columns: minmax(0, 1fr) 42px;
+  align-items: end;
+  gap: 12px;
+  border: 1px solid #dfe3e9;
+  border-radius: 14px;
+  background: #fff;
+  box-shadow: 0 14px 40px rgba(16, 24, 40, 0.07);
+  padding: 14px;
+}
+
+.newTaskComposer:focus-within {
+  border-color: #b6bec9;
+  box-shadow: 0 14px 40px rgba(16, 24, 40, 0.08), 0 0 0 3px rgba(152, 162, 179, 0.1);
+}
+
+.newTaskComposer textarea {
+  width: 100%;
+  min-height: 48px;
+  max-height: 130px;
+  resize: none;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #101828;
+  line-height: 1.5;
+}
+
+.newTaskComposer textarea::placeholder {
+  color: #98a2b3;
+}
+
+.newTaskComposer > button {
+  display: grid;
+  width: 40px;
+  height: 40px;
+  place-items: center;
+  border: 0;
+  border-radius: 50%;
+  background: #17181c;
+  color: #fff;
+}
+
+.newTaskComposer > button:disabled {
+  background: #aeb5c0;
+  cursor: default;
+}
+
+.knowledgeBaseView > header,
+.fileSpaceTabs,
+.knowledgeToolbar,
+.projectFolderStrip,
+.fileListHeading,
+.knowledgeTable {
+  width: min(1240px, 100%);
+  margin-inline: auto;
+}
+
+.fileSpaceTabs {
+  display: flex;
+  gap: 20px;
+  margin-bottom: 16px;
+  border-bottom: 1px solid #e4e7ec;
+}
+
+.fileSpaceTabs button {
+  position: relative;
+  min-height: 38px;
+  border: 0;
+  background: transparent;
+  padding: 0 2px;
+  color: #667085;
+  font-size: 13px;
+}
+
+.fileSpaceTabs button.active {
+  color: #101828;
+  font-weight: 650;
+}
+
+.fileSpaceTabs button.active::after {
+  position: absolute;
+  right: 0;
+  bottom: -1px;
+  left: 0;
+  height: 2px;
+  background: #101828;
+  content: "";
+}
+
+.knowledgeToolbar {
+  justify-content: flex-start;
+  margin-bottom: 18px;
+}
+
+.knowledgeToolbar .knowledgeSearch {
+  margin-right: auto;
+}
+
+.projectFolderStrip {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+  margin-bottom: 24px;
+}
+
+.projectFolderStrip button {
+  display: grid;
+  min-width: 0;
+  min-height: 58px;
+  grid-template-columns: 24px minmax(0, 1fr) 18px;
+  align-items: center;
+  gap: 9px;
+  border: 1px solid #e4e7ec;
+  border-radius: 9px;
+  background: #fff;
+  padding: 9px 11px;
+  color: #475467;
+  text-align: left;
+}
+
+.projectFolderStrip button:hover {
+  border-color: #c8ced8;
+  background: #f9fafb;
+}
+
+.projectFolderStrip button > svg:first-child {
+  color: #667085;
+}
+
+.projectFolderStrip button > svg:last-child {
+  justify-self: end;
+  color: #98a2b3;
+}
+
+.projectFolderStrip span,
+.projectFolderStrip strong,
+.projectFolderStrip small {
+  display: block;
+  min-width: 0;
+}
+
+.projectFolderStrip strong {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  color: #1d2939;
+  font-size: 13px;
+}
+
+.projectFolderStrip small {
+  margin-top: 3px;
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.fileListHeading {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 8px;
+  color: #344054;
+  font-size: 13px;
+}
+
+.fileListHeading strong {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+
+.fileListHeading > span {
+  color: #98a2b3;
+  font-size: 11px;
+}
+
+.folderBackButton {
+  border: 0;
+  background: transparent;
+  padding: 0;
+  color: #667085;
+  font: inherit;
+  font-weight: 600;
+}
+
+.folderBackButton:hover {
+  color: #101828;
+}
+
+.rowActionMenu label {
+  display: flex;
+  min-height: 34px;
+  align-items: center;
+  gap: 8px;
+  border-radius: 7px;
+  padding: 0 9px;
+  color: #344054;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.rowActionMenu label:hover {
+  background: #f2f4f7;
+  color: #101828;
+}
+
+@media (max-width: 900px) {
+  .newTaskHome {
+    padding-inline: 26px;
+  }
+
+  .taskExampleGrid,
+  .projectFolderStrip {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 620px) {
+  .newTaskHome {
+    padding: 18px 16px;
+  }
+
+  .newTaskIntro {
+    align-content: start;
+    padding-top: 8vh;
+  }
+
+  .newTaskIntro h1 {
+    margin: 14px 0 20px;
+    font-size: 24px;
+  }
+
+  .taskExampleGrid,
+  .projectFolderStrip {
+    grid-template-columns: 1fr;
+    gap: 8px;
+  }
+
+  .taskExampleGrid button {
+    min-height: 54px;
+    grid-template-columns: 20px minmax(0, 1fr);
+    align-content: center;
+    align-items: center;
+    gap: 10px;
+    padding: 12px;
+  }
+
+  .newTaskIntentConversation > p {
+    max-width: 92%;
+  }
+
+  .newTaskComposer {
+    min-height: 72px;
+    padding: 11px;
+  }
+
+  .fileSpaceTabs {
+    overflow-x: auto;
+  }
+
+  .fileSpaceTabs button {
+    flex: 0 0 auto;
+  }
+}
