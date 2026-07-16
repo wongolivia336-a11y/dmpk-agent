@@ -7,7 +7,7 @@ This repository is for design review, user-flow validation, and engineering hand
 ## Preview
 
 - GitHub remote: https://github.com/wongolivia336-a11y/dmpk-agent.git
-- Vercel: import this repository as a Next.js project.
+- Vercel: [import this repository as a Next.js project.](https://prototype-dmpk-quotation-workbench.vercel.app/)
 
 ## Quick Start
 
